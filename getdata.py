@@ -1,18 +1,23 @@
 import requests
-def fetch_data(urls):
+    #first we import request
+def fetch_api_data(urls):
+    # Fetches data from multiple API URLs and returns the JSON response
     response = requests.get(urls)
     status_code = response.status_code
     if status_code == 200:
         return response.json()
     else:
-        return None
+        raise Exception(f"Failed to fetch data. Status code: {status_code}")
+    
+    return None
 # Define the API URLs with names
 urls={
-            "Appointment_API":"https://xloop-dummy.herokuapp.com/appointment",
-            "Councillor_API":"https://xloop-dummy.herokuapp.com/councillor",
-            "Patient_councillor_API":"https://xloop-dummy.herokuapp.com/patient_councillor",
-            "Rating_API":"https://xloop-dummy.herokuapp.com/rating" 
+            "appointment_api":"https://xloop-dummy.herokuapp.com/appointment",
+            "councillor_api":"https://xloop-dummy.herokuapp.com/councillor",
+            "patient_councillor_api":"https://xloop-dummy.herokuapp.com/patient_councillor",
+            "rating_api":"https://xloop-dummy.herokuapp.com/rating" 
 }
+
 
 
 

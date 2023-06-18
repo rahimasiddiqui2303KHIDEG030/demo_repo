@@ -1,75 +1,84 @@
+# from pyspark.sql import SparkSession
+# from pyspark.sql.functions import col
+# from getdata import fetch_api_data, urls
+# spark= SparkSession.builder.appName("FileReader").getOrCreate()
+
+# def spark_dataframe(spark):
+#     spark = SparkSession.builder.appName("FileReader").getOrCreate()
+#     rating = spark.createDataFrame(fetch_api_data(urls['rating_api']))
+#     appointment = spark.createDataFrame(fetch_api_data(urls['appointment_api']))
+#     councillor =spark.createDataFrame(fetch_api_data(urls['councillor_api']))
+#     patient_councillor = spark.createDataFrame(fetch_api_data(urls['patient_councillor_api']))
+#     return rating, appointment,councillor, patient_councillor
+# # Perform the joins
+# def perform_joins(rating, appointment, councillor, patient_councillor):
+#     join1 = rating.join(appointment, rating.appointment_id == appointment.id, "inner")
+#     join2 = join1.join(councillor, councillor.id == councillor.id, "inner")
+#     join3 = join2.join(patient_councillor, join2.patient_id == patient_councillor.patient_id, "inner")
+#     result_table = join3.select(appointment["patient_id"], councillor["id"].alias("councillor_id"), councillor["specialization"], rating["value"])
+#     # specialization_table = result_table.select("specialization", "councillor_id").distinct()
+#     # avg_rating_table = result_table.groupBy("councillor_id").avg("value").withColumnRenamed("avg(value)", "average_rating")
+#     return result_table
+# def calculate_specialization_table(result_table):
+#     specialization_table = result_table.select("specialization", "councillor_id").distinct()
+#     return specialization_table
+
+# def calculate_avg_rating_table(result_table):
+#     avg_rating_table = result_table.groupBy("councillor_id").avg("value").withColumnRenamed("avg(value)", "average_rating")
+#     return avg_rating_table
+
+
+# def run_data_processing(spark):
+#     # Create Spark DataFrames
+#     rating, appointment, councillor, patient_councillor = spark_dataframe(spark)
+#     # Perform Spark joins
+#     specialization_table, avg_rating_table, result_table = perform_joins(rating, appointment, councillor, patient_councillor)
+#     result_table = perform_joins(rating, appointment, councillor, patient_councillor)
+    
+#     specialization_table = calculate_specialization_table(result_table)
+#     avg_rating_table = calculate_avg_rating_table(result_table)
+    
+#     specialization_table.show()
+#     avg_rating_table.show()
+#     result_table.show()
+# run_data_processing('spark')
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import col
-import redis
-from json_utils import convert_bytes_to_json
-
-def save_specialization_table_to_redis(specialization_table):
-    specialization_json = specialization_table.toJSON().collect()
-
-    redis_host = "localhost"  # Replace with the actual Redis server host
-    redis_port = 6379  # Replace with the actual Redis server port
-    redis_client = redis.Redis(host=redis_host, port=redis_port)
-
-    # Store the data as a JSON array under a single key
-    json_array = "[" + ",".join(specialization_json) + "]"
-    redis_client.set("specialization_table", json_array)
-
-    # Retrieve the data from Redis
-    retrieved_data = redis_client.get("specialization_table")
-
-    redis_client.close()
-
-    # Convert bytes to JSON
-    retrieved_data_json = convert_bytes_to_json(retrieved_data)
-
-    return retrieved_data_json
-
-def save_avg_rating_table_to_redis(avg_rating_table):
-    avg_rating_json = avg_rating_table.toJSON().collect()
-
-    redis_host = "localhost"  # Replace with the actual Redis server host
-    redis_port = 6379  # Replace with the actual Redis server port
-    redis_client = redis.Redis(host=redis_host, port=redis_port)
-
-    # Store the data as a JSON array under a single key
-    json_array = "[" + ",".join(avg_rating_json) + "]"
-    redis_client.set("avg_rating_table", json_array)
-
-    # Retrieve the data from Redis
-    retrieved_data = redis_client.get("avg_rating_table")
-
-    redis_client.close()
-
-    # Convert bytes to JSON
-    retrieved_data_json = convert_bytes_to_json(retrieved_data)
-
-    return retrieved_data_json
+from getdata import fetch_api_data, urls
 
 spark = SparkSession.builder.appName("FileReader").getOrCreate()
 
-rating = spark.read.json("rating.json", multiLine=True)
-appointment = spark.read.json("appointment.json", multiLine=True)
-councillor = spark.read.json("councillor.json", multiLine=True)
-patient_councillor = spark.read.json("patient_councillor.json", multiLine=True)
+def spark_data(spark):
+    rating = spark.createDataFrame(fetch_api_data(urls['rating_api']))
+    appointment = spark.createDataFrame(fetch_api_data(urls['appointment_api']))
+    councillor = spark.createDataFrame(fetch_api_data(urls['councillor_api']))
+    patient_councillor = spark.createDataFrame(fetch_api_data(urls['patient_councillor_api']))
+    return rating, appointment, councillor, patient_councillor
 
-# Perform the joins
-join1 = rating.join(appointment, rating.appointment_id == appointment.id, "inner")
-join2 = join1.join(councillor, councillor.id == councillor.id, "inner")
-join3 = join2.join(patient_councillor, join2.patient_id == patient_councillor.patient_id, "inner")
-result_table = join3.select(appointment["patient_id"], councillor["id"].alias("councillor_id"), councillor["specialization"], rating["value"])
+def perform_joins(rating, appointment, councillor, patient_councillor):
+    join1 = rating.join(appointment, rating.appointment_id == appointment.id, "inner")
+    join2 = join1.join(councillor, councillor.id == councillor.id, "inner")
+    join3 = join2.join(patient_councillor, join2.patient_id == patient_councillor.patient_id, "inner")
+    result_table = join3.select(appointment["patient_id"], councillor["id"].alias("councillor_id"), councillor["specialization"], rating["value"])
+    return result_table
 
-specialization_table = result_table.select("specialization", "councillor_id").distinct()
-avg_rating_table = result_table.groupBy("councillor_id").avg("value").withColumnRenamed("avg(value)", "average_rating")
+def calculate_specialization_table(result_table):
+    specialization_table = result_table.select("specialization", "councillor_id").distinct()
+    return specialization_table
 
-# Call the function to save and retrieve data from Redis
-retrieved_specialization_data = save_specialization_table_to_redis(specialization_table)
-retrieved_avg_rating_data = save_avg_rating_table_to_redis(avg_rating_table)
+def calculate_avg_rating_table(result_table):
+    avg_rating_table = result_table.groupBy("councillor_id").avg("value").withColumnRenamed("avg(value)", "average_rating")
+    return avg_rating_table
 
-# Print the retrieved data
-print(retrieved_specialization_data)
-print(retrieved_avg_rating_data)
+def run_data_processing(spark):
+    rating, appointment, councillor, patient_councillor = spark_data(spark)
+    result_table = perform_joins(rating, appointment, councillor, patient_councillor)
+    
+    specialization_table = calculate_specialization_table(result_table)
+    avg_rating_table = calculate_avg_rating_table(result_table)
+    
+    specialization_table.show()
+    avg_rating_table.show()
+    result_table.show()
 
-specialization_table.show()
-
-avg_rating_table.show()
-result_table.show()
+run_data_processing(spark)
